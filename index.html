@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>M&C Castries Store Performance Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+/* UPDATED BRANDING: Deep Blue and Warm Orange */
+:root{
+    --bg:#f5f5f5;
+    --panel:#fff;
+    --panel-header:#fafafa;
+    --border:#e0e0e0;
+    --muted:#605e5c;
+    --text:#323130;
+    --brand-blue: #004F9F; /* M&C Primary Blue */
+    --accent: #F8971F; /* M&C Accent Orange */
+    --accent-hover:#e8820c; /* Slightly darker orange */
+    --accent-2:#ff8c00; /* Secondary alert/chart color */
+    --accent-3:#107c10; /* Success/green */
+    --warning:#ffb900;
+    --error:#d13438;
+    --shadow:0 1.6px 3.6px 0 rgba(0,0,0,0.132),0 0.3px 0.9px 0 rgba(0,0,0,0.108);
+    --shadow-hover:0 3.2px 7.2px 0 rgba(0,0,0,0.132),0 0.6px 1.8px 0 rgba(0,0,0,0.108);
+    --card-radius:8px;
+    --gap:16px
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+.app{max-width:1600px;margin:0 auto;padding:20px;min-height:100vh}
+.header{background:var(--panel);padding:16px 24px;margin:-20px -20px 20px -20px;border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
+.header-content{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;max-width:1600px;margin:0 auto}
+.title{display:flex;align-items:center;gap:14px}
+/* Logo element using Brand Blue */
+.logo{width:48px;height:48px;border-radius:4px;background:var(--brand-blue);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:24px;box-shadow:var(--shadow);text-shadow:0 1px 2px rgba(0,0,0,0.2)}
+
+.title h1{font-size:24px;margin:0;font-weight:600;color:var(--text);letter-spacing:-0.3px}
+.title p{margin:4px 0 0 0;font-size:14px;color:var(--muted);font-weight:400}
+.filter-bar{background:var(--panel);padding:16px 24px;margin:0 -20px 20px -20px;border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
+.filter-container{display:flex;gap:12px;align-items:center;flex-wrap:wrap;max-width:1600px;margin:0 auto}
+.filter-label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-right:8px}
+.filter{background:var(--panel);border:1px solid var(--border);padding:8px 12px;border-radius:6px;min-width:180px;display:flex;flex-direction:column;gap:4px;transition:all 0.2s}
+/* Filter border hover uses the new Orange accent */
+.filter:hover{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+
+.filter label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block}
+.filter select,.filter input{border:0;font-size:14px;outline:none;background:transparent;width:100%;cursor:pointer;color:var(--text);font-weight:500;padding:2px 0}
+.actions{display:flex;gap:8px;margin-left:auto}
+/* Buttons use the new Orange accent */
+.btn{background:var(--accent);border:0;color:#fff;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px;transition:all 0.2s;box-shadow:var(--shadow);letter-spacing:0.2px}
+.btn:hover{background:var(--accent-hover);box-shadow:var(--shadow-hover);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.secondary{background:var(--panel);color:var(--accent);border:1px solid var(--border);box-shadow:none;padding:9px 17px}
+.btn.secondary:hover{border-color:var(--accent);background:#f5f5f5}
+
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--gap)}
+.kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:var(--gap)}
+.kpi{background:var(--panel);border:1px solid var(--border);padding:20px;border-radius:var(--card-radius);display:flex;flex-direction:column;justify-content:space-between;min-height:120px;box-shadow:var(--shadow);transition:all 0.2s;position:relative;overflow:hidden}
+.kpi:hover{box-shadow:var(--shadow-hover);transform:translateY(-2px)}
+/* KPI gradient strip uses Brand Blue to Orange */
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--brand-blue),var(--accent))}
+/* KPI values use Brand Blue */
+.kpi .value{font-size:38px;color:var(--brand-blue);font-weight:700;line-height:1.2;margin-bottom:8px}
+
+.kpi .label{font-size:12px;color:var(--muted);text-transform:uppercase;font-weight:600;letter-spacing:0.8px;line-height:1.4}
+.kpi .trend{font-size:13px;color:var(--accent-3);margin-top:6px;font-weight:500}
+.kpi .icon{position:absolute;right:20px;top:20px;font-size:32px;opacity:0.1;color:var(--brand-blue)}
+
+.chart-panel{background:var(--panel);border:1px solid var(--border);padding:0;border-radius:var(--card-radius);height:400px;display:flex;flex-direction:column;box-shadow:var(--shadow);transition:all 0.2s}
+.chart-panel:hover{box-shadow:var(--shadow-hover)}
+.chart-header{background:var(--panel-header);padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;border-top-left-radius:var(--card-radius);border-top-right-radius:var(--card-radius)}
+.chart-header h3{margin:0;font-size:16px;font-weight:600;color:var(--text);letter-spacing:-0.2px}
+.chart-area{flex:1;position:relative;padding:16px}
+.panel-left-4{grid-column:1/span 4}
+.panel-mid-4{grid-column:5/span 4}
+.panel-right-4{grid-column:9/span 4}
+.table-panel{background:var(--panel);border:1px solid var(--border);padding:0;border-radius:var(--card-radius);box-shadow:var(--shadow);transition:all 0.2s}
+.table-panel:hover{box-shadow:var(--shadow-hover)}
+.table-header{background:var(--panel-header);padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-top-left-radius:var(--card-radius);border-top-right-radius:var(--card-radius)}
+.table-header h3{margin:0;font-size:16px;font-weight:600;color:var(--text);letter-spacing:-0.2px}
+.table-description{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.table-content{padding:0 20px 20px 20px;max-height:420px;overflow:auto}
+.table-content::-webkit-scrollbar{width:8px;height:8px}
+.table-content::-webkit-scrollbar-track{background:var(--panel-header)}
+.table-content::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.table-content::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:12px 10px;text-align:left;border-bottom:1px solid #f5f5f5}
+th{background:transparent;font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px;border-bottom:2px solid var(--border)}
+tbody tr{transition:background 0.15s}
+tbody tr:hover{background:#fafafa}
+tbody tr:last-child td{border-bottom:none}
+.status-badge{display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px}
+.status-critical{background:#fef0f0;color:var(--error)}
+.status-warning{background:#fffbf0;color:#ff8c00}
+.status-good{background:#f0f9f0;color:var(--accent-3)}
+@media (max-width:1200px){
+.panel-left-4,.panel-mid-4,.panel-right-4{grid-column:1/-1}
+}
+@media (max-width:768px){
+.app{padding:12px}
+.header{margin:-12px -12px 12px -12px}
+.filter-bar{margin:0 -12px 12px -12px}
+.kpis{grid-template-columns:1fr}
+.filter-container{flex-direction:column;align-items:stretch}
+.filter{min-width:100%}
+.actions{width:100%;margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="header">
+<div class="header-content">
+<div class="title">
+    <div class="logo">M&C</div> 
+    <div>
+        <h1>Castries Store Performance Dashboard</h1>
+        <p>Daily operational metrics for the Store Manager – *Today's Date: Oct 1, 2025*</p>
+    </div>
+</div>
+</div>
+</div>
+<div class="filter-bar">
+<div class="filter-container">
+<span class="filter-label">View</span>
+<div class="filter">
+<label for="filterPeriod">Time Period</label>
+<select id="filterPeriod" onchange="runDataPipeline()">
+    <option value="Today">Today</option>
+    <option value="WTD">Week to Date (WTD)</option>
+    <option value="MTD" selected>Month to Date (MTD)</option>
+    <option value="YTD">Year to Date (YTD)</option>
+</select>
+</div>
+<div class="filter">
+<label for="filterDepartment">Department</label>
+<select id="filterDepartment" onchange="runDataPipeline()"><option value="All">All Departments</option></select>
+</div>
+<div class="actions">
+<button class="btn secondary" id="resetFilters">Reset Filters</button>
+</div>
+</div>
+</div>
+<div class="grid">
+<div class="kpis">
+    <div class="kpi">
+        <div class="icon">💲</div>
+        <div class="value" id="kpiSales">$0.00</div>
+        <div class="label">Net Sales</div>
+        <div class="trend" id="trendSales"></div>
+    </div>
+    <div class="kpi">
+        <div class="icon">⭐</div>
+        <div class="value" id="kpiCustomerScore">0.0</div>
+        <div class="label">Avg Customer Service Score</div>
+        <div class="trend" id="trendCustomerScore"></div>
+    </div>
+    <div class="kpi">
+        <div class="icon">⏱️</div>
+        <div class="value" id="kpiSalesPerHour">$0.00</div>
+        <div class="label">Sales per Labor Hour</div>
+        <div class="trend" id="trendSalesPerHour"></div>
+    </div>
+    <div class="kpi">
+        <div class="icon">🛒</div>
+        <div class="value" id="kpiOSARate">0%</div>
+        <div class="label">On-Shelf Availability Rate</div>
+        <div class="trend" id="trendOSARate"></div>
+    </div>
+</div>
+<div class="panel-left-4 chart-panel">
+<div class="chart-header"><h3>Sales vs. Target Trend</h3></div>
+<div class="chart-area"><canvas id="salesTargetChart"></canvas></div>
+</div>
+<div class="panel-mid-4 chart-panel">
+<div class="chart-header"><h3>Department Sales Mix (Value)</h3></div>
+<div class="chart-area"><canvas id="salesMixChart"></canvas></div>
+</div>
+<div class="panel-right-4 chart-panel">
+<div class="chart-header"><h3>Customer Traffic & Value</h3></div>
+<div class="chart-area"><canvas id="basketTrafficChart"></canvas></div>
+</div>
+<div class="table-panel" style="grid-column:1/span 6">
+<div class="table-header">
+    <div>
+        <h3>Critical Stock/Merchandising Alerts</h3>
+        <div class="table-description">Top items below safety stock or needing immediate action. (Manages inventory/ordering)</div>
+    </div>
+</div>
+<div class="table-content">
+    <table>
+        <thead><tr><th>Product Name</th><th>Stock</th><th>Action</th><th>Location</th><th>Value</th></tr></thead>
+        <tbody id="inventoryTableBody"></tbody>
+    </table>
+</div>
+</div>
+<div class="table-panel" style="grid-column:7/span 6">
+<div class="table-header">
+    <div>
+        <h3>Team Service & Efficiency Alerts</h3>
+        <div class="table-description">Low scores or high refund/void rates by team member. (Manages staff/customer service)</div>
+    </div>
+</div>
+<div class="table-content">
+    <table>
+        <thead><tr><th>Employee ID</th><th>Metric</th><th>Target</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody id="teamTableBody"></tbody>
+    </table>
+</div>
+</div>
+</div>
+</div>
+<script>
+// --- Configuration & Mock Data Setup ---
+const DEPARTMENTS = ['Pharmacy', 'Health & Beauty', 'Snacks & Drinks', 'General Merchandise', 'Seasonal'];
+const MONTHS = ['Oct 1', 'Oct 2', 'Oct 3', 'Oct 4', 'Oct 5', 'Oct 6', 'Oct 7']; 
+const STAFF = [
+    {id: 'E101', name: 'Maria F.', role: 'Supervisor', performance: 0.95},
+    {id: 'E102', name: 'Kevin B.', role: 'Cashier', performance: 0.88},
+    {id: 'E103', name: 'Alisha C.', role: 'Floor Staff', performance: 1.05},
+    {id: 'E104', name: 'Devon P.', role: 'Cashier', performance: 0.75}, 
+    {id: 'E105', name: 'Ria T.', role: 'Floor Staff', performance: 0.98},
+];
+
+let salesTargetChart, salesMixChart, basketTrafficChart;
+
+function generateMockData() {
+    // Generate daily sales, traffic, and service data
+    const DATA = {
+        NET_SALES: 0,
+        CUSTOMER_SCORE: 0,
+        SALES_PER_HOUR: 0,
+        OSA_RATE: 0,
+        SALES_TREND: [],
+        TARGET_TREND: [],
+        DEPT_SALES: {},
+        TRAFFIC_DATA: {transactions: 0, basketSize: 0},
+        INVENTORY_ALERTS: [],
+        TEAM_ALERTS: []
+    };
+
+    // 1. Sales Trend (7 days)
+    const baseSales = 7500;
+    const salesData = MONTHS.map((_, i) => Math.round(baseSales * (1 + (Math.random() * 0.2 - 0.1))));
+    const targetData = MONTHS.map((_, i) => baseSales * 1.02);
+    DATA.SALES_TREND = salesData;
+    DATA.TARGET_TREND = targetData;
+    
+    // 2. Department Sales Mix
+    DEPARTMENTS.forEach(dept => {
+        let value = 0;
+        if (dept === 'Pharmacy') value = Math.round(Math.random() * 15000 + 40000);
+        else if (dept === 'Health & Beauty') value = Math.round(Math.random() * 10000 + 25000);
+        else value = Math.round(Math.random() * 5000 + 5000);
+        DATA.DEPT_SALES[dept] = value;
+    });
+
+    // 3. KPIs (based on MTD for demonstration)
+    const mtdSales = salesData.reduce((a, b) => a + b, 0);
+    const mtdHours = 8 * STAFF.length * salesData.length * 0.9; // 90% staff utilization
+    DATA.NET_SALES = mtdSales;
+    DATA.CUSTOMER_SCORE = (Math.random() * 0.5 + 4.0).toFixed(1); // 4.0 to 4.5
+    DATA.SALES_PER_HOUR = (mtdSales / mtdHours).toFixed(2);
+    DATA.OSA_RATE = (Math.random() * 0.05 + 0.93).toFixed(2); // 93% to 98%
+    DATA.TRAFFIC_DATA.transactions = Math.round(mtdSales / 35); // Avg basket $35
+    DATA.TRAFFIC_DATA.basketSize = (mtdSales / DATA.TRAFFIC_DATA.transactions).toFixed(2);
+
+    // 4. Inventory Alerts (Stock Outs)
+    const PRODUCTS = ['Tylenol 500mg', 'SPF 50 Sunscreen', 'Vitamin C 1000mg', 'Hand Soap', 'Pain Reliever'];
+    PRODUCTS.slice(0, 3).forEach((p, i) => {
+        DATA.INVENTORY_ALERTS.push({
+            name: p,
+            stock: Math.round(Math.random() * 5 + 1),
+            action: 'Urgent Reorder/Restock',
+            location: ['Pharmacy Shelf 1A', 'Front End Display', 'Vitamins Isle 3'][i],
+            value: Math.round(Math.random() * 500 + 500)
+        });
+    });
+
+    // 5. Team Alerts (Low Performance)
+    STAFF.filter(s => s.performance < 0.9).forEach(s => {
+        let status = 'Status-Warning';
+        let metric = 'Avg Service Score: ' + (s.performance * 4.8).toFixed(1);
+        let notes = 'Needs coaching on greeting/up-selling.';
+        if (s.performance < 0.8) {
+            status = 'Status-Critical';
+            metric = 'Voids/Refunds: 8+ MTD';
+            notes = 'Immediate follow-up required (Policy breach potential).';
+        }
+        DATA.TEAM_ALERTS.push({
+            id: s.id,
+            metric: metric,
+            target: s.role === 'Cashier' ? 'Voids < 5' : 'Score > 4.2',
+            status: status,
+            notes: notes
+        });
+    });
+
+    return DATA;
+}
+
+// --- Dashboard Rendering Functions ---
+
+function updateKPIs(data) {
+    // Net Sales
+    document.getElementById('kpiSales').textContent = '$' + Math.round(data.NET_SALES).toLocaleString();
+    document.getElementById('trendSales').textContent = data.NET_SALES > 50000 ? '▲ 12% vs. Last Period' : '▼ 5% vs. Last Period';
+    document.getElementById('trendSales').style.color = data.NET_SALES > 50000 ? 'var(--accent-3)' : 'var(--error)';
+
+    // Avg Customer Service Score
+    document.getElementById('kpiCustomerScore').textContent = data.CUSTOMER_SCORE;
+    document.getElementById('trendCustomerScore').textContent = data.CUSTOMER_SCORE >= 4.4 ? '▲ Excellent' : '● Needs Improvement';
+    document.getElementById('trendCustomerScore').style.color = data.CUSTOMER_SCORE >= 4.4 ? 'var(--accent-3)' : 'var(--accent-2)';
+
+    // Sales per Labor Hour
+    document.getElementById('kpiSalesPerHour').textContent = '$' + data.SALES_PER_HOUR;
+    document.getElementById('trendSalesPerHour').textContent = data.SALES_PER_HOUR >= 60 ? '▲ Above Target ($55)' : '● Below Target ($55)';
+    document.getElementById('trendSalesPerHour').style.color = data.SALES_PER_HOUR >= 60 ? 'var(--accent-3)' : 'var(--warning)';
+    
+    // On-Shelf Availability Rate
+    document.getElementById('kpiOSARate').textContent = (data.OSA_RATE * 100).toFixed(0) + '%';
+    document.getElementById('trendOSARate').textContent = data.OSA_RATE >= 0.95 ? '▲ Healthy' : '▼ Needs Audit';
+    document.getElementById('trendOSARate').style.color = data.OSA_RATE >= 0.95 ? 'var(--accent-3)' : 'var(--error)';
+}
+
+function updateCharts(data) {
+    const periodLabels = document.getElementById('filterPeriod').value === 'MTD' ? MONTHS : (document.getElementById('filterPeriod').value === 'Today' ? ['09:00', '12:00', '15:00', '18:00'] : ['Week 1', 'Week 2', 'Week 3', 'Week 4']);
+
+    // 1. Sales vs. Target Trend (Line Chart)
+    if (salesTargetChart) {
+        salesTargetChart.data.datasets[0].data = data.SALES_TREND;
+        salesTargetChart.data.datasets[1].data = data.TARGET_TREND;
+        salesTargetChart.data.labels = periodLabels;
+        salesTargetChart.update();
+    } else {
+        salesTargetChart = new Chart(document.getElementById('salesTargetChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: periodLabels,
+                datasets: [
+                    {label: 'Actual Sales ($)', data: data.SALES_TREND, borderColor: 'var(--brand-blue)', backgroundColor: 'rgba(0, 79, 159, 0.1)', fill: false, tension: 0.4, borderWidth: 3},
+                    {label: 'Target ($)', data: data.TARGET_TREND, borderColor: 'var(--muted)', borderDash: [5, 5], fill: false, tension: 0.4, borderWidth: 2}
+                ]
+            },
+            options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'top'}, tooltip: {callbacks: {label: c => c.dataset.label + ': $' + c.parsed.y.toLocaleString()}}}, scales: {y: {beginAtZero: true, ticks: {callback: v => '$' + (v / 1000).toFixed(0) + 'K'}}}}
+        });
+    }
+
+    // 2. Department Sales Mix (Doughnut Chart)
+    const mixData = Object.values(data.DEPT_SALES);
+    const mixLabels = Object.keys(data.DEPT_SALES);
+    // Using Brand Blue and Orange for primary mix colors
+    const backgroundColors = ['var(--brand-blue)', 'var(--accent)', '#107c10', '#0078d4', '#4c2c92'];
+    if (salesMixChart) {
+        salesMixChart.data.datasets[0].data = mixData;
+        salesMixChart.data.labels = mixLabels;
+        salesMixChart.update();
+    } else {
+        salesMixChart = new Chart(document.getElementById('salesMixChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: mixLabels,
+                datasets: [{label: 'Sales Mix ($)', data: mixData, backgroundColor: backgroundColors, borderWidth: 1}]
+            },
+            options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'right'}, tooltip: {callbacks: {label: c => c.label + ': $' + c.parsed.toLocaleString()}}}}
+        });
+    }
+
+    // 3. Customer Traffic & Value (Bar Chart)
+    const trafficLabels = ['Transactions (Units)', 'Avg. Basket Size ($)'];
+    const trafficData = [data.TRAFFIC_DATA.transactions, data.TRAFFIC_DATA.basketSize];
+    if (basketTrafficChart) {
+        basketTrafficChart.data.datasets[0].data = trafficData;
+        basketTrafficChart.update();
+    } else {
+        basketTrafficChart = new Chart(document.getElementById('basketTrafficChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: trafficLabels,
+                // Using Brand Orange and Green for contrast
+                datasets: [{label: 'Performance', data: trafficData, backgroundColor: ['var(--accent)', 'var(--accent-3)'], borderRadius: 6}]
+            },
+            options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => c.label.includes('Units') ? c.parsed.toLocaleString() : '$' + c.parsed.toFixed(2)}}}, scales: {y: {beginAtZero: true, ticks: {callback: v => v.toLocaleString()}}}}
+        });
+    }
+}
+
+function renderInventoryTable(alerts) {
+    const tb = document.getElementById('inventoryTableBody');
+    tb.innerHTML = '';
+    if (alerts.length === 0) {
+        tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px"><span class="status-badge status-good">✓ No Critical Stock Issues</span></td></tr>';
+        return;
+    }
+    alerts.slice(0, 8).forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:600">${p.name}</td>
+            <td><span class="status-badge status-critical">${p.stock} Units</span></td>
+            <td>${p.action}</td>
+            <td>${p.location}</td>
+            <td style="font-weight:600">$${Math.round(p.value).toLocaleString()}</td>
+        `;
+        tb.appendChild(tr);
+    });
+}
+
+function renderTeamTable(alerts) {
+    const tb = document.getElementById('teamTableBody');
+    tb.innerHTML = '';
+    if (alerts.length === 0) {
+        tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px"><span class="status-badge status-good">✓ Team Performance is on Target</span></td></tr>';
+        return;
+    }
+    alerts.slice(0, 8).forEach(p => {
+        const tr = document.createElement('tr');
+        const badgeClass = p.status === 'Status-Critical' ? 'status-critical' : 'status-warning';
+        tr.innerHTML = `
+            <td style="font-weight:600">${STAFF.find(s=>s.id===p.id).name} (${p.id})</td>
+            <td>${p.metric}</td>
+            <td>${p.target}</td>
+            <td><span class="status-badge ${badgeClass}">ALERT</span></td>
+            <td style="font-size:12px">${p.notes}</td>
+        `;
+        tb.appendChild(tr);
+    });
+}
+
+// --- Main Data Pipeline ---
+function runDataPipeline() {
+    // Note: In a real application, this function would fetch live data based on the selected filter.
+    const allData = generateMockData();
+    updateKPIs(allData);
+    updateCharts(allData);
+    renderInventoryTable(allData.INVENTORY_ALERTS);
+    renderTeamTable(allData.TEAM_ALERTS);
+}
+
+// --- Utility Functions ---
+function populateFilterOptions() {
+    const ds = document.getElementById('filterDepartment');
+    DEPARTMENTS.forEach(d => {const o = document.createElement('option'); o.value = d; o.textContent = d; ds.appendChild(o);});
+}
+
+function resetFilters() {
+    document.getElementById('filterPeriod').value = 'MTD';
+    document.getElementById('filterDepartment').value = 'All';
+    runDataPipeline();
+}
+
+// --- Initialization ---
+document.addEventListener('DOMContentLoaded', () => {
+    populateFilterOptions();
+    runDataPipeline();
+});
+
+document.getElementById('resetFilters').addEventListener('click', resetFilters);
+</script>
+</body>
+</html>
